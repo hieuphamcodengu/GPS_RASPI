@@ -157,7 +157,7 @@
     <!-- Khu vực hiển thị video -->
     <div class="video-container">
       <img id="videoFeed" src="" alt="Camera Feed" style="display:none;">
-      <div style="color: white; text-align: center; padding: 100px 20px;">
+      <div id="cameraPlaceholder" style="color: white; text-align: center; padding: 100px 20px;">
         <h3>📷 Camera chưa được kích hoạt</h3>
         <p>Nhấn nút "Xem camera" để bắt đầu</p>
       </div>
@@ -225,6 +225,7 @@
       const videoFeed = document.getElementById("videoFeed");
       const statusText = document.getElementById("statusText");
       const btnCamera = document.getElementById("btnCamera");
+      const placeholder = document.getElementById("cameraPlaceholder");
       
       if (!cameraActive) {
         // Bật camera
@@ -236,6 +237,7 @@
             if (r.ok) {
               cameraActive = true;
               videoFeed.style.display = "block";
+              placeholder.style.display = "none";  // Ẩn placeholder
               videoFeed.src = "/video_feed?t=" + new Date().getTime();
               statusText.textContent = "Camera đang hoạt động";
               btnCamera.textContent = "⏹️ Tắt camera";
@@ -263,6 +265,7 @@
             cameraActive = false;
             detectionActive = false;
             videoFeed.style.display = "none";
+            placeholder.style.display = "block";  // Hiện lại placeholder
             videoFeed.src = "";
             statusText.textContent = "Camera đã tắt";
             btnCamera.textContent = "📹 Xem camera";
