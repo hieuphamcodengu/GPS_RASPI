@@ -131,8 +131,15 @@
         </div>
       </div>
       <div style="flex: 2;">
+        <!-- Debug Panel -->
+        <div style="background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; margin-bottom: 16px;">
+          <h3 style="text-align:center; color:#1a73e8; margin-top:0; margin-bottom:12px;">📟 Trạng thái xe</h3>
+          <div id="debugPanel" style="background: #263238; color: #0f0; font-family: 'Courier New', monospace; font-size: 13px; padding: 12px; border-radius: 4px; min-height: 120px; max-height: 200px; overflow-y: auto;">
+            <div id="debugContent">Chờ lệnh...</div>
+          </div>
+        </div>
         <!-- Phần bản đồ, nút, bảng tọa độ, chỉ dẫn di chuyển sẽ nằm ở đây -->
-        <div id="logPanel" style="background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); min-height:60px; font-size:13px; color:#444; margin-top:16px; padding:12px;"></div>
+        <div id="logPanel" style="background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); min-height:60px; font-size:13px; color:#444; padding:12px; display:none;"></div>
       </div>
     </div>
 

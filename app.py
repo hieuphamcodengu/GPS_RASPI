@@ -68,6 +68,33 @@ def start_route():
     threading.Thread(target=execute_route_commands, args=(shared_data, dis_list, dir_list, dir_value_list), daemon=True).start()
     return Response("Route started", mimetype="text/plain")
 
+@app.route("/pauseRoute", methods=["POST"])
+def pause_route():
+    """Tạm dừng route"""
+    shared_data.set_route_state(paused=True)
+    print("[PAUSE ROUTE] Route paused")
+    return Response("Route paused", mimetype="text/plain")
+
+@app.route("/resumeRoute", methods=["POST"])
+def resume_route():
+    """Tiếp tục route sau khi tạm dừng"""
+    shared_data.set_route_state(paused=False)
+    print("[RESUME ROUTE] Route resumed")
+    return Response("Route resumed", mimetype="text/plain")
+
+@app.route("/stopRoute", methods=["POST"])
+def stop_route():
+    """Dừng hẳn route"""
+    shared_data.set_route_state(stopped=True, running=False, paused=False)
+    print("[STOP ROUTE] Route stopped")
+    return Response("Route stopped", mimetype="text/plain")
+
+@app.route("/getRouteStatus")
+def get_route_status():
+    """Lấy trạng thái route hiện tại"""
+    status = shared_data.get_route_state()
+    return jsonify(status)
+
 # ===================== DETECTION ROUTES =====================
 @app.route("/video_feed")
 def video_feed():
