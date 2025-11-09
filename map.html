@@ -110,6 +110,30 @@
       button { flex: 100%; font-size: 14px; }
       #map { height: 55vh; }
     }
+
+    /* Debug Panel Styles */
+    #debugPanel {
+      scrollbar-width: thin;
+      scrollbar-color: #0f0 #263238;
+    }
+    
+    #debugPanel::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    #debugPanel::-webkit-scrollbar-track {
+      background: #263238;
+    }
+    
+    #debugPanel::-webkit-scrollbar-thumb {
+      background: #0f0;
+      border-radius: 4px;
+    }
+    
+    #debugContent div {
+      padding: 2px 0;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -178,6 +202,8 @@
   // Trạng thái điều khiển
   let routeReady = false;
   let started = false;
+  let paused = false;
+  let statusUpdateInterval = null;
 
     function initMap() {
       const location = { lat: 21.0278, lng: 105.8342 };
@@ -374,7 +400,9 @@
           sendDataToESP32();  // Gửi dữ liệu đến ESP32
           routeReady = true;
           started = false;
+          paused = false;
           updateControlButtons();
+          updateDebugPanel("✅ Route đã được tính toán. Nhấn 'Bắt đầu' để khởi hành!");
         })
         .catch(error => {
           console.error('Error fetching GPS data:', error);
@@ -447,47 +475,164 @@
       const btnStart = document.getElementById("btnStart");
       const btnPause = document.getElementById("btnPause");
       const btnStop = document.getElementById("btnStop");
-      // Bắt đầu chỉ sáng khi đã có route (sau Calculate Directions), chưa bắt đầu
-      btnStart.disabled = !routeReady || started;
-      // Tạm dừng và Dừng chỉ sáng khi đã bắt đầu
-      btnPause.disabled = !routeReady || !started;
-      btnStop.disabled = !routeReady || !started;
+      // Bắt đầu chỉ sáng khi đã có route (sau Calculate Directions), chưa bắt đầu hoặc đã dừng
+      btnStart.disabled = !routeReady || (started && !paused);
+      // Tạm dừng chỉ sáng khi đã bắt đầu và chưa pause
+      btnPause.disabled = !started || paused;
+      btnPause.textContent = paused ? "▶️ Tiếp tục" : "⏸️ Tạm dừng";
+      // Dừng chỉ sáng khi đã bắt đầu
+      btnStop.disabled = !started;
+    }
+
+    // Cập nhật debug panel
+    function updateDebugPanel(message) {
+      const debugContent = document.getElementById("debugContent");
+      const timestamp = new Date().toLocaleTimeString();
+      const newLine = document.createElement("div");
+      newLine.textContent = `[${timestamp}] ${message}`;
+      debugContent.appendChild(newLine);
+      // Auto scroll to bottom
+      document.getElementById("debugPanel").scrollTop = document.getElementById("debugPanel").scrollHeight;
+      // Giữ tối đa 50 dòng
+      while (debugContent.children.length > 50) {
+        debugContent.removeChild(debugContent.firstChild);
+      }
+    }
+
+    // Fetch route status từ server
+    function fetchRouteStatus() {
+      fetch("/getRouteStatus")
+        .then(r => r.json())
+        .then(status => {
+          if (status.running) {
+            const step = status.current_step;
+            const total = status.total_steps;
+            const action = status.current_action;
+            const remaining = status.distance_remaining;
+            
+            let message = `[Bước ${step}/${total}] ${action}`;
+            if (remaining > 0) {
+              message += ` (còn ${remaining.toFixed(2)}m)`;
+            }
+            
+            // Chỉ update nếu message khác với dòng cuối cùng
+            const debugContent = document.getElementById("debugContent");
+            const lastLine = debugContent.lastChild;
+            if (!lastLine || !lastLine.textContent.includes(action)) {
+              updateDebugPanel(message);
+            }
+          } else if (status.stopped) {
+            if (started) {
+              updateDebugPanel("❌ Đã dừng hành trình");
+              started = false;
+              paused = false;
+              updateControlButtons();
+            }
+          }
+        })
+        .catch(err => console.error("Error fetching route status:", err));
+    }
+
+    // Start auto-update status
+    function startStatusUpdate() {
+      if (statusUpdateInterval === null) {
+        statusUpdateInterval = setInterval(fetchRouteStatus, 500);  // Cập nhật mỗi 0.5s
+      }
+    }
+
+    // Stop auto-update status
+    function stopStatusUpdate() {
+      if (statusUpdateInterval !== null) {
+        clearInterval(statusUpdateInterval);
+        statusUpdateInterval = null;
+      }
     }
 
     // Sự kiện nút
     document.addEventListener("DOMContentLoaded", function() {
       document.getElementById("btnStart").onclick = function() {
-        started = true;
-        updateControlButtons();
-        // Gửi lệnh bắt đầu đến server
-        const params = new URLSearchParams({
-          dis: dis.join(","),
-          dir: dir.join(","),
-          dir_value: dir_value.join(",")
-        });
-        fetch("/startRoute", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: params
-        })
-        .then(r => r.text())
-        .then(msg => {
-          console.log("[START ROUTE]", msg);
-          document.getElementById("logPanel").textContent = "Đã gửi lệnh bắt đầu!";
-        })
-        .catch(err => {
-          document.getElementById("logPanel").textContent = "Lỗi gửi lệnh bắt đầu!";
-          console.error(err);
-        });
+        if (paused) {
+          // Tiếp tục sau khi pause
+          fetch("/resumeRoute", { method: "POST" })
+            .then(r => r.text())
+            .then(msg => {
+              console.log("[RESUME ROUTE]", msg);
+              paused = false;
+              updateControlButtons();
+              updateDebugPanel("▶️ Tiếp tục hành trình");
+            })
+            .catch(err => console.error(err));
+        } else {
+          // Bắt đầu mới
+          started = true;
+          paused = false;
+          updateControlButtons();
+          updateDebugPanel("🚀 Bắt đầu hành trình...");
+          
+          // Gửi lệnh bắt đầu đến server
+          const params = new URLSearchParams({
+            dis: dis.join(","),
+            dir: dir.join(","),
+            dir_value: dir_value.join(",")
+          });
+          fetch("/startRoute", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params
+          })
+          .then(r => r.text())
+          .then(msg => {
+            console.log("[START ROUTE]", msg);
+            startStatusUpdate();  // Bắt đầu cập nhật status
+          })
+          .catch(err => {
+            updateDebugPanel("❌ Lỗi: " + err.message);
+            console.error(err);
+          });
+        }
       };
+      
       document.getElementById("btnPause").onclick = function() {
-        // TODO: gửi lệnh tạm dừng đến server/robot nếu cần
+        if (!paused) {
+          // Tạm dừng
+          fetch("/pauseRoute", { method: "POST" })
+            .then(r => r.text())
+            .then(msg => {
+              console.log("[PAUSE ROUTE]", msg);
+              paused = true;
+              updateControlButtons();
+              updateDebugPanel("⏸️ Đã tạm dừng");
+            })
+            .catch(err => console.error(err));
+        } else {
+          // Tiếp tục (giống nút Start khi paused)
+          fetch("/resumeRoute", { method: "POST" })
+            .then(r => r.text())
+            .then(msg => {
+              console.log("[RESUME ROUTE]", msg);
+              paused = false;
+              updateControlButtons();
+              updateDebugPanel("▶️ Tiếp tục hành trình");
+            })
+            .catch(err => console.error(err));
+        }
       };
+      
       document.getElementById("btnStop").onclick = function() {
-        started = false;
-        updateControlButtons();
-        // TODO: gửi lệnh dừng đến server/robot nếu cần
+        // Dừng hẳn
+        fetch("/stopRoute", { method: "POST" })
+          .then(r => r.text())
+          .then(msg => {
+            console.log("[STOP ROUTE]", msg);
+            started = false;
+            paused = false;
+            updateControlButtons();
+            stopStatusUpdate();
+            updateDebugPanel("🛑 Đã dừng hành trình");
+          })
+          .catch(err => console.error(err));
       };
+      
       updateControlButtons();
     });
 
