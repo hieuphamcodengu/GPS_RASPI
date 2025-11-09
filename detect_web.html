@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1"/>
+  <title>Plant Disease Detection</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f9fafc;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    h2 {
+      text-align: center;
+      color: #1a73e8;
+      margin-bottom: 20px;
+    }
+
+    /* Thanh nút điều khiển trên cùng */
+    .top-controls {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .top-controls button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      color: white;
+      transition: all 0.3s;
+      font-weight: bold;
+    }
+
+    .btn-back {
+      background-color: #607D8B;
+    }
+
+    .btn-back:hover {
+      background-color: #455A64;
+    }
+
+    .btn-camera {
+      background-color: #2196F3;
+    }
+
+    .btn-camera:hover {
+      background-color: #1976D2;
+    }
+
+    .btn-camera.active {
+      background-color: #FF5722;
+    }
+
+    .btn-detect {
+      background-color: #4CAF50;
+    }
+
+    .btn-detect:hover {
+      background-color: #388E3C;
+    }
+
+    .btn-detect.active {
+      background-color: #FF5722;
+    }
+
+    /* Khu vực hiển thị video/camera */
+    .video-container {
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    #videoFeed {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Thông tin thống kê */
+    .stats-panel {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .stats-panel h3 {
+      color: #1a73e8;
+      margin-top: 0;
+    }
+
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .stat-item:last-child {
+      border-bottom: none;
+    }
+
+    .stat-label {
+      font-weight: bold;
+      color: #555;
+    }
+
+    .stat-value {
+      color: #1a73e8;
+      font-weight: bold;
+    }
+
+    @media (max-width: 768px) {
+      .top-controls button {
+        flex: 1 1 100%;
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>� Hệ Thống Phát Hiện Bệnh Cây</h2>
+
+    <!-- Thanh điều khiển trên cùng -->
+    <div class="top-controls">
+      <button class="btn-back" onclick="goBack()">
+        ⬅️ Trở về
+      </button>
+      <button class="btn-camera" id="btnCamera" onclick="toggleCamera()">
+        📹 Xem camera
+      </button>
+      <button class="btn-detect" id="btnDetect" onclick="toggleDetection()">
+        🎯 Detect
+      </button>
+    </div>
+
+    <!-- Khu vực hiển thị video -->
+    <div class="video-container">
+      <img id="videoFeed" src="" alt="Camera Feed" style="display:none;">
+      <div id="cameraPlaceholder" style="color: white; text-align: center; padding: 100px 20px;">
+        <h3>📷 Camera chưa được kích hoạt</h3>
+        <p>Nhấn nút "Xem camera" để bắt đầu</p>
+      </div>
+    </div>
+
+    <!-- Thông tin thống kê -->
+    <div class="stats-panel">
+      <h3>📊 Thông tin hệ thống</h3>
+      <div class="stat-item">
+        <span class="stat-label">Trạng thái:</span>
+        <span class="stat-value" id="statusText">Đang chờ...</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">FPS:</span>
+        <span class="stat-value" id="fpsText">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Số cây phát hiện:</span>
+        <span class="stat-value" id="objectCount">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Thời gian xử lý:</span>
+        <span class="stat-value" id="inferenceTime">0 ms</span>
+      </div>
+    </div>
+    
+    <!-- Bảng phân loại -->
+    <div class="stats-panel" id="classificationPanel" style="display:none; margin-top: 20px;">
+      <h3>🌿 Kết quả phân loại</h3>
+      <div class="stat-item">
+        <span class="stat-label" style="color: #f44336;">🔴 Cây bị bệnh:</span>
+        <span class="stat-value" id="diseaseCount" style="color: #f44336;">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label" style="color: #4CAF50;">🟢 Cây bình thường:</span>
+        <span class="stat-value" id="healthyCount" style="color: #4CAF50;">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Tổng cộng:</span>
+        <span class="stat-value" id="totalCount">0</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let cameraActive = false;
+    let detectionActive = false;
+    let statsInterval = null;
+
+    // Quay lại trang chủ
+    function goBack() {
+      // Dừng camera trước khi quay lại
+      if (cameraActive) {
+        fetch("/camera_stop", { method: "POST" })
+          .then(() => {
+            window.location.href = "/";
+          });
+      } else {
+        window.location.href = "/";
+      }
+    }
+
+    // Bật/tắt camera
+    function toggleCamera() {
+      const videoFeed = document.getElementById("videoFeed");
+      const statusText = document.getElementById("statusText");
+      const btnCamera = document.getElementById("btnCamera");
+      const placeholder = document.getElementById("cameraPlaceholder");
+      
+      if (!cameraActive) {
+        // Bật camera
+        btnCamera.disabled = true;
+        btnCamera.textContent = "⏳ Đang khởi động...";
+        
+        fetch("/camera_start", { method: "POST" })
+          .then(r => {
+            if (r.ok) {
+              cameraActive = true;
+              videoFeed.style.display = "block";
+              placeholder.style.display = "none";  // Ẩn placeholder
+              videoFeed.src = "/video_feed?t=" + new Date().getTime();
+              statusText.textContent = "Camera đang hoạt động";
+              btnCamera.textContent = "⏹️ Tắt camera";
+              btnCamera.classList.add("active");
+              btnCamera.disabled = false;
+              
+              // Bắt đầu cập nhật stats
+              startStatsUpdate();
+            } else {
+              statusText.textContent = "Lỗi khởi động camera!";
+              btnCamera.textContent = "📹 Xem camera";
+              btnCamera.disabled = false;
+            }
+          })
+          .catch(err => {
+            console.error("Error starting camera:", err);
+            statusText.textContent = "Lỗi kết nối camera!";
+            btnCamera.textContent = "📹 Xem camera";
+            btnCamera.disabled = false;
+          });
+      } else {
+        // Tắt camera
+        fetch("/camera_stop", { method: "POST" })
+          .then(() => {
+            cameraActive = false;
+            detectionActive = false;
+            videoFeed.style.display = "none";
+            placeholder.style.display = "block";  // Hiện lại placeholder
+            videoFeed.src = "";
+            statusText.textContent = "Camera đã tắt";
+            btnCamera.textContent = "📹 Xem camera";
+            btnCamera.classList.remove("active");
+            
+            document.getElementById("btnDetect").classList.remove("active");
+            document.getElementById("btnDetect").textContent = "🎯 Detect";
+            
+            // Dừng cập nhật stats
+            stopStatsUpdate();
+            resetStats();
+          })
+          .catch(err => console.error("Error stopping camera:", err));
+      }
+    }
+
+    // Bật/tắt detection
+    function toggleDetection() {
+      if (!cameraActive) {
+        alert("⚠️ Vui lòng bật camera trước!");
+        return;
+      }
+
+      const btnDetect = document.getElementById("btnDetect");
+      const statusText = document.getElementById("statusText");
+      
+      if (!detectionActive) {
+        // Bật detection
+        btnDetect.disabled = true;
+        fetch("/start_detection", { method: "POST" })
+          .then(r => r.text())
+          .then(msg => {
+            detectionActive = true;
+            btnDetect.classList.add("active");
+            btnDetect.textContent = "⏹️ Dừng Detect";
+            statusText.textContent = "Đang phát hiện vật thể...";
+            btnDetect.disabled = false;
+            console.log("Detection started:", msg);
+          })
+          .catch(err => {
+            console.error("Error starting detection:", err);
+            statusText.textContent = "Lỗi khởi động detection!";
+            btnDetect.disabled = false;
+          });
+      } else {
+        // Tắt detection
+        btnDetect.disabled = true;
+        fetch("/stop_detection", { method: "POST" })
+          .then(r => r.text())
+          .then(msg => {
+            detectionActive = false;
+            btnDetect.classList.remove("active");
+            btnDetect.textContent = "🎯 Detect";
+            statusText.textContent = "Camera đang hoạt động (No detection)";
+            btnDetect.disabled = false;
+            console.log("Detection stopped:", msg);
+            
+            // Reset stats khi dừng detection
+            document.getElementById("objectCount").textContent = "0";
+            document.getElementById("inferenceTime").textContent = "0 ms";
+          })
+          .catch(err => {
+            console.error("Error stopping detection:", err);
+            btnDetect.disabled = false;
+          });
+      }
+    }
+
+    // Cập nhật thống kê từ server
+    function updateStats() {
+      if (cameraActive) {
+        fetch("/detection_stats")
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById("fpsText").textContent = data.fps;
+            if (detectionActive) {
+              const plantCount = data.plants_detected || data.objects || 0;
+              document.getElementById("objectCount").textContent = plantCount;
+              document.getElementById("inferenceTime").textContent = data.inference_time + " ms";
+              
+              // Hiển thị panel phân loại nếu có detection
+              if (plantCount > 0) {
+                document.getElementById("classificationPanel").style.display = "block";
+                // Cập nhật số lượng bệnh/bình thường nếu server gửi
+                document.getElementById("diseaseCount").textContent = data.disease_count || 0;
+                document.getElementById("healthyCount").textContent = data.healthy_count || 0;
+                document.getElementById("totalCount").textContent = plantCount;
+              }
+            }
+          })
+          .catch(err => console.error("Error fetching stats:", err));
+      }
+    }
+
+    // Bắt đầu cập nhật stats
+    function startStatsUpdate() {
+      if (statsInterval === null) {
+        statsInterval = setInterval(updateStats, 500);  // Cập nhật mỗi 0.5s
+      }
+    }
+
+    // Dừng cập nhật stats
+    function stopStatsUpdate() {
+      if (statsInterval !== null) {
+        clearInterval(statsInterval);
+        statsInterval = null;
+      }
+    }
+
+    // Reset stats display
+    function resetStats() {
+      document.getElementById("fpsText").textContent = "0";
+      document.getElementById("objectCount").textContent = "0";
+      document.getElementById("inferenceTime").textContent = "0 ms";
+      document.getElementById("classificationPanel").style.display = "none";
+      document.getElementById("diseaseCount").textContent = "0";
+      document.getElementById("healthyCount").textContent = "0";
+      document.getElementById("totalCount").textContent = "0";
+    }
+
+    // Cleanup khi thoát trang
+    window.addEventListener('beforeunload', function() {
+      if (cameraActive) {
+        fetch("/camera_stop", { method: "POST", keepalive: true });
+      }
+    });
+  </script>
+</body>
+</html>
