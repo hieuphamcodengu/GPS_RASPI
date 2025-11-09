@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1"/>
+  <title>ESP32 Map Controller</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f9fafc;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      padding: 10px;
+    }
+
+    h2 {
+      text-align: center;
+      color: #1a73e8;
+    }
+
+    #map {
+      width: 100%;
+      height: 60vh;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .buttons, .map-types {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+
+    button {
+      flex: 1;
+      margin: 5px;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #1a73e8;
+      color: white;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #0d47a1;
+    }
+
+    .map-types button {
+      background-color: #ccc;
+      color: #333;
+    }
+
+    .map-types button.active {
+      background-color: #1a73e8;
+      color: white;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      background: #fff;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      text-align: center;
+      padding: 8px;
+    }
+
+    th {
+      background-color: #1a73e8;
+      color: white;
+    }
+
+    #directions {
+      background: #fff;
+      margin-top: 15px;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    #directions ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    #directions li {
+      margin-bottom: 6px;
+      padding: 5px 10px;
+      border-left: 4px solid #1a73e8;
+      background: #f2f4f8;
+    }
+
+    @media (max-width: 768px) {
+      button { flex: 100%; font-size: 14px; }
+      #map { height: 55vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📍 ESP32 Real-time GPS Tracker</h2>
+
+    <div style="margin-top: 10px; text-align: center;">
+      <strong>Yaw:</strong> <span id="yawValue">0.00</span>°
+    </div>
+
+    <div style="display: flex; gap: 20px; align-items: flex-start;">
+      <div style="flex: 1; min-width: 180px;">
+        <div style="background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px;">
+          <h3 style="text-align:center; color:#1a73e8; margin-bottom:12px;">Control Panel</h3>
+          <button id="btnStart" style="width:100%; margin-bottom:8px;" disabled>Bắt đầu</button>
+          <button id="btnPause" style="width:100%; margin-bottom:8px; background-color:#ff9800; color:white;" disabled>Tạm dừng</button>
+          <button id="btnStop" style="width:100%; background-color:#ff5252; color:white;" disabled>Dừng</button>
+        </div>
+      </div>
+      <div style="flex: 2;">
+        <!-- Phần bản đồ, nút, bảng tọa độ, chỉ dẫn di chuyển sẽ nằm ở đây -->
+        <div id="logPanel" style="background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); min-height:60px; font-size:13px; color:#444; margin-top:16px; padding:12px;"></div>
+      </div>
+    </div>
+
+    <!-- 🌍 Thanh chọn loại bản đồ -->
+    <div class="map-types">
+      <button onclick="setMapType('roadmap')" class="active">🗺️ Roadmap</button>
+      <button onclick="setMapType('satellite')">🌍 Satellite</button>
+      <button onclick="setMapType('hybrid')">🧭 Hybrid</button>
+      <button onclick="setMapType('terrain')">🏔️ Terrain</button>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="buttons">
+      <button onclick="clearRoute()">Clear Route</button>
+      <button onclick="showCoordinates()">Show Coordinates</button>
+      <button onclick="calculateDirections()">Calculate Directions</button>
+    </div>
+
+    <table id="coordinatesTable" style="display:none;">
+      <thead><tr><th>Latitude</th><th>Longitude</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div id="directions" style="display:none;">
+      <h3>Movement Directions</h3>
+      <ul id="directionsList"></ul>
+    </div>
+  </div>
+
+  <script>
+  let map, currentMarker, markers = [], markerObjects = [], routePath;
+  let dis = [], dir = [], dir_value = [];
+  let routeLines = [];  // Mảng lưu các đường nối (đỏ và xanh)
+
+  // Trạng thái điều khiển
+  let routeReady = false;
+  let started = false;
+
+    function initMap() {
+      const location = { lat: 21.0278, lng: 105.8342 };
+      map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 15,
+        center: location,
+        mapTypeId: 'roadmap'
+      });
+
+      currentMarker = new google.maps.Marker({ position: location, map, title: "Current Position" });
+
+      map.addListener("click", (event) => {
+        addMarker(event.latLng);
+        drawRoute();
+      });
+
+  fetchGpsData();
+  fetchYawData();
+    }
+
+    // 🌍 Chuyển loại bản đồ
+    function setMapType(type) {
+      map.setMapTypeId(type);
+      document.querySelectorAll('.map-types button').forEach(b => b.classList.remove('active'));
+      const btn = [...document.querySelectorAll('.map-types button')].find(b => b.textContent.includes(type.charAt(0).toUpperCase()));
+      if (btn) btn.classList.add('active');
+    }
+
+    function addMarker(location) {
+      const marker = new google.maps.Marker({ position: location, map });
+      markerObjects.push(marker);
+      markers.push(location);
+      addRow(location.lat(), location.lng());
+    }
+
+    function drawRoute() {
+      if (routePath) routePath.setMap(null);
+      routePath = new google.maps.Polyline({
+        path: markers, strokeColor: "#FF0000", strokeOpacity: 1.0, strokeWeight: 2
+      });
+      routePath.setMap(map);
+    }
+
+    function clearRoute() {
+      if (routePath) routePath.setMap(null);  // Xóa đường đi
+      markerObjects.forEach(m => m.setMap(null));  // Xóa markers
+
+      // Xóa các đường nối màu đỏ và xanh
+      routeLines.forEach(line => line.setMap(null));  // Xóa đường nối
+      routeLines = [];  // Reset lại mảng chứa các đường nối
+      
+  markerObjects = [];
+  markers = [];
+  dis = [];
+  dir = [];
+  dir_value = [];
+  routeReady = false;
+  started = false;
+  updateControlButtons();
+      
+      // Xóa bảng tọa độ và chỉ dẫn di chuyển
+      document.querySelector("#coordinatesTable tbody").innerHTML = "";
+      document.getElementById("directionsList").innerHTML = "";
+      document.getElementById("directions").style.display = "none";
+    }
+
+    function addRow(lat, lng) {
+      const row = document.querySelector("#coordinatesTable tbody").insertRow();
+      row.insertCell(0).textContent = lat.toFixed(6);
+      row.insertCell(1).textContent = lng.toFixed(6);
+    }
+
+    function showCoordinates() {
+      document.getElementById("coordinatesTable").style.display = "table";
+    }
+
+    function calcDistance(p1, p2) {
+      const R = 6371e3;
+      const dLat = (p2.lat()-p1.lat())*Math.PI/180;
+      const dLon = (p2.lng()-p1.lng())*Math.PI/180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat()*Math.PI/180)*Math.cos(p2.lat()*Math.PI/180)*Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function calcAngle(p1, p2, p3) {
+      const toXY = (p) => {
+        const R = 6371e3;
+        const x = R * (p.lng() * Math.PI / 180) * Math.cos(p.lat() * Math.PI / 180);
+        const y = R * (p.lat() * Math.PI / 180);
+        return { x, y };
+      };
+
+      const P1 = toXY(p1), P2 = toXY(p2), P3 = toXY(p3);
+
+      const V1x = P2.x - P1.x, V1y = P2.y - P1.y;
+      const V2x = P3.x - P2.x, V2y = P3.y - P2.y;
+
+      const dotProduct = V1x * V2x + V1y * V2y;
+      const lenV1 = Math.sqrt(V1x * V1x + V1y * V1y);
+      const lenV2 = Math.sqrt(V2x * V2x + V2y * V2y);
+
+      const angle = Math.acos(dotProduct / (lenV1 * lenV2)) * (180 / Math.PI);
+      const crossProduct = V1x * V2y - V1y * V2x;
+      const direction = crossProduct > 0 ? -1 : (crossProduct < 0 ? 1 : 0);
+
+      return { angle, dir: direction };
+    }
+
+    function calculateDirections() {
+      const directionsDiv = document.getElementById("directions");
+      const list = document.getElementById("directionsList");
+      list.innerHTML = "";  // Clear previous directions
+
+      let currentLat = null, currentLng = null;
+      fetch("/getGpsData")
+        .then(response => response.text())
+        .then(data => {
+          [currentLat, currentLng] = data.split(",").map(parseFloat);
+          if (!currentLat || !currentLng) {
+            alert("⚠️ GPS không hợp lệ.");
+            return;
+          }
+
+          const currentPoint = new google.maps.LatLng(currentLat, currentLng);
+          const fullMarkers = [currentPoint, ...markers];  // Thêm điểm hiện tại vào danh sách markers
+
+          if (fullMarkers.length < 2) {
+            alert("Need at least 1 destination point!");
+            return;
+          }
+
+          dis = []; dir = []; dir_value = [];
+
+          // Bước 1️⃣: Tính toán góc quay và di chuyển từ P1 → P2, P2 → P3 ...
+          for (let i = 1; i < fullMarkers.length; i++) {
+            const a = fullMarkers[i - 1], b = fullMarkers[i];
+            const distance = calcDistance(a, b);  // Tính khoảng cách giữa 2 điểm
+            const turn = calcAngle(a, b, fullMarkers[i + 1] || b);  // Tính góc quay (nếu có điểm tiếp theo)
+
+            if (distance !== 0) {
+              dis.push(distance);  // Lưu khoảng cách vào mảng dis
+              dir.push(turn.dir);  // Lưu hướng quay vào mảng dir
+              dir_value.push(turn.angle);  // Lưu góc quay vào mảng dir_value
+
+              // Thêm chỉ dẫn di chuyển vào danh sách
+              const li = document.createElement("li");
+              const textDir = turn.dir === 1 ? "Turn right" : turn.dir === -1 ? "Turn left" : "Go straight";
+              li.textContent = `Move ${distance.toFixed(2)} m and ${textDir} (${turn.angle.toFixed(2)}°)`;
+              list.appendChild(li);
+
+              // Vẽ đường giữa các điểm nối
+              const color = i === 1 ? "#00FF00" : "#FF0000";  // Màu xanh lá cho đường nối từ P1 đến P2
+              const line = new google.maps.Polyline({
+                path: [a, b],
+                strokeColor: color,
+                strokeOpacity: 1.0,
+                strokeWeight: 3
+              });
+              line.setMap(map);
+              routeLines.push(line);  // Lưu vào mảng routeLines
+            }
+          }
+
+          // Bước 2️⃣: Đoạn cuối cùng (di chuyển và dừng lại)
+          const last = fullMarkers.length - 1;
+          const distEnd = calcDistance(fullMarkers[last - 1], fullMarkers[last]);
+
+          if (distEnd !== 0) {
+            dis.push(distEnd);  // Lưu khoảng cách cuối cùng
+            dir.push(0);  // Không quay ở đoạn cuối
+            dir_value.push(0);  // Không quay
+          }
+
+          // Xóa giá trị cuối cùng nếu không cần thiết (nếu không có di chuyển)
+          if (dis.length > 1) {
+            dis.pop();
+            dir.pop();
+            dir_value.pop();
+          }
+
+          // Xử lý NaN và thay thế bằng 0 (tránh hiển thị NaN)
+          dir_value.forEach((value, index) => {
+            if (isNaN(value)) {
+              dir_value[index] = 0;
+            }
+          });
+
+          // In các mảng dis, dir, dir_value ra console để kiểm tra
+          console.log("dis:", dis);
+          console.log("dir:", dir);
+          console.log("dir_value:", dir_value);
+          displayMovementDirections();
+          directionsDiv.style.display = "block";  
+          sendDataToESP32();  // Gửi dữ liệu đến ESP32
+          routeReady = true;
+          started = false;
+          updateControlButtons();
+        })
+        .catch(error => {
+          console.error('Error fetching GPS data:', error);
+          alert("❌ Không thể lấy tọa độ GPS từ ESP32.");
+        });
+    }
+
+    function displayMovementDirections() {
+      const directionsDiv = document.getElementById("directions");
+      const list = document.getElementById("directionsList");
+
+      // Clear any previous directions
+      list.innerHTML = "";
+
+      // Hiển thị các chỉ dẫn di chuyển
+      for (let i = 0; i < dis.length; i++) {
+        const li = document.createElement("li");
+
+        if (i === dis.length - 1) {
+          // Dòng cuối cùng: di chuyển và dừng lại
+          li.textContent = `Move ${dis[i].toFixed(2)} m then STOP`;
+        } else {
+          // Các dòng di chuyển còn lại
+          const textDir = dir[i] === 1 ? "Turn right" : dir[i] === -1 ? "Turn left" : "Go straight";
+          li.textContent = `Move ${dis[i].toFixed(2)} m and ${textDir} (${dir_value[i].toFixed(2)}°)`;
+        }
+
+        list.appendChild(li);
+      }
+
+      // Hiển thị phần chỉ dẫn
+      directionsDiv.style.display = "block";
+    }
+
+    function sendDataToESP32() {
+      const params = new URLSearchParams({
+        dis: dis.join(","), dir: dir.join(","), dir_value: dir_value.join(",")
+      });
+      fetch("/postData", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params })
+        .then(r => r.text())
+        .then(console.log)
+        .catch(console.error);
+    }
+
+    function fetchGpsData() {
+      setInterval(() => {
+        fetch("/getGpsData").then(r => r.text()).then(data => {
+          const [lat, lng] = data.split(",").map(parseFloat);
+          const loc = new google.maps.LatLng(lat, lng);
+          if (currentMarker) currentMarker.setMap(null);
+          currentMarker = new google.maps.Marker({ position: loc, map, title: "Current Position" });
+          map.setCenter(loc);
+        }).catch(console.error);
+      }, 5000);
+    }
+
+    function fetchYawData() {
+      setInterval(() => {
+        fetch("/getYaw")
+          .then(r => r.text())
+          .then(yaw => {
+            document.getElementById("yawValue").textContent = yaw;
+          })
+          .catch(console.error);
+      }, 1000); // cập nhật mỗi 1 giây
+    }
+
+    // Hàm cập nhật trạng thái nút điều khiển
+    function updateControlButtons() {
+      const btnStart = document.getElementById("btnStart");
+      const btnPause = document.getElementById("btnPause");
+      const btnStop = document.getElementById("btnStop");
+      // Bắt đầu chỉ sáng khi đã có route (sau Calculate Directions), chưa bắt đầu
+      btnStart.disabled = !routeReady || started;
+      // Tạm dừng và Dừng chỉ sáng khi đã bắt đầu
+      btnPause.disabled = !routeReady || !started;
+      btnStop.disabled = !routeReady || !started;
+    }
+
+    // Sự kiện nút
+    document.addEventListener("DOMContentLoaded", function() {
+      document.getElementById("btnStart").onclick = function() {
+        started = true;
+        updateControlButtons();
+        // Gửi lệnh bắt đầu đến server
+        const params = new URLSearchParams({
+          dis: dis.join(","),
+          dir: dir.join(","),
+          dir_value: dir_value.join(",")
+        });
+        fetch("/startRoute", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params
+        })
+        .then(r => r.text())
+        .then(msg => {
+          console.log("[START ROUTE]", msg);
+          document.getElementById("logPanel").textContent = "Đã gửi lệnh bắt đầu!";
+        })
+        .catch(err => {
+          document.getElementById("logPanel").textContent = "Lỗi gửi lệnh bắt đầu!";
+          console.error(err);
+        });
+      };
+      document.getElementById("btnPause").onclick = function() {
+        // TODO: gửi lệnh tạm dừng đến server/robot nếu cần
+      };
+      document.getElementById("btnStop").onclick = function() {
+        started = false;
+        updateControlButtons();
+        // TODO: gửi lệnh dừng đến server/robot nếu cần
+      };
+      updateControlButtons();
+    });
+  </script>
+
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&callback=initMap"></script>
+</body>
+</html>
