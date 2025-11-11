@@ -115,6 +115,10 @@
     #debugPanel {
       scrollbar-width: thin;
       scrollbar-color: #0f0 #263238;
+      overflow-y: auto;
+      overflow-x: hidden;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
     
     #debugPanel::-webkit-scrollbar {
@@ -130,9 +134,17 @@
       border-radius: 4px;
     }
     
+    #debugContent {
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    
     #debugContent div {
       padding: 2px 0;
       line-height: 1.4;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
   </style>
 </head>
@@ -487,14 +499,21 @@
     // Cập nhật debug panel
     function updateDebugPanel(message) {
       const debugContent = document.getElementById("debugContent");
+      const debugPanel = document.getElementById("debugPanel");
       const timestamp = new Date().toLocaleTimeString();
       const newLine = document.createElement("div");
       newLine.textContent = `[${timestamp}] ${message}`;
+      newLine.style.wordWrap = "break-word";
+      newLine.style.overflowWrap = "break-word";
+      
       debugContent.appendChild(newLine);
+      
       // Auto scroll to bottom
-      document.getElementById("debugPanel").scrollTop = document.getElementById("debugPanel").scrollHeight;
-      // Giữ tối đa 50 dòng
-      while (debugContent.children.length > 50) {
+      debugPanel.scrollTop = debugPanel.scrollHeight;
+      
+      // Giữ tối đa 30 dòng để tránh tràn
+      const maxLines = 30;
+      while (debugContent.children.length > maxLines) {
         debugContent.removeChild(debugContent.firstChild);
       }
     }
