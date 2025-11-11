@@ -163,7 +163,9 @@
           <button id="btnStart" style="width:100%; margin-bottom:8px;" disabled>Bắt đầu</button>
           <button id="btnPause" style="width:100%; margin-bottom:8px; background-color:#ff9800; color:white;" disabled>Tạm dừng</button>
           <button id="btnStop" style="width:100%; margin-bottom:8px; background-color:#ff5252; color:white;" disabled>Dừng</button>
-          <button id="btnDetection" style="width:100%; background-color:#4CAF50; color:white;" onclick="goToDetection()">🎯 Detection</button>
+          <button id="btnDetection" style="width:100%; margin-bottom:8px; background-color:#4CAF50; color:white;" onclick="goToDetection()">🎯 Detection</button>
+          <button id="btnLidar" style="width:100%; margin-bottom:8px; background-color:#9C27B0; color:white;" onclick="goToLidar()">📡 LIDAR</button>
+          <button id="btnConfig" style="width:100%; background-color:#FF9800; color:white;" onclick="goToConfig()">⚙️ Cấu hình</button>
         </div>
       </div>
       <div style="flex: 2;">
@@ -658,6 +660,16 @@
     // Chuyển sang trang Detection
     function goToDetection() {
       window.location.href = "/detection";
+    }
+
+    // Chuyển sang trang LIDAR
+    function goToLidar() {
+      window.location.href = "/lidar";
+    }
+
+    // Chuyển sang trang Cấu hình
+    function goToConfig() {
+      window.location.href = "/config";
     }
   </script>
 

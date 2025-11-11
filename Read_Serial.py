@@ -17,6 +17,9 @@ class SerialData:
         self.total_steps = 0
         self.current_action = "Chờ lệnh..."
         self.distance_remaining = 0.0
+        # Thêm biến LIDAR obstacle detection
+        self.lidar_obstacle_detected = False
+        self.lidar_min_distance = float('inf')
 
     def update(self, data: dict):
         with self.lock:
@@ -53,6 +56,20 @@ class SerialData:
             self.total_steps = total
             self.current_action = action
             self.distance_remaining = distance_remaining
+    
+    def set_lidar_obstacle(self, detected, min_distance=float('inf')):
+        """Cập nhật trạng thái phát hiện vật cản từ LIDAR"""
+        with self.lock:
+            self.lidar_obstacle_detected = detected
+            self.lidar_min_distance = min_distance
+    
+    def get_lidar_obstacle(self):
+        """Lấy trạng thái phát hiện vật cản"""
+        with self.lock:
+            return {
+                "detected": self.lidar_obstacle_detected,
+                "min_distance": self.lidar_min_distance
+            }
 
 def start_serial_thread(shared_data: SerialData):
     """Luồng đọc dữ liệu GPS và góc quay từ ESP32"""
@@ -125,6 +142,26 @@ def execute_route_commands(shared_data: SerialData, dis_list, dir_list, dir_valu
                         shared_data.update_route_progress(i+1, len(dis_list), "Đang tạm dừng...", distance * (1 - elapsed/total_time))
                         sleep(0.1)
                     
+                    # Kiểm tra LIDAR obstacle (vật cản < 400mm phía trước)
+                    lidar_status = shared_data.get_lidar_obstacle()
+                    if lidar_status["detected"]:
+                        print(f"[Serial] ⚠️ LIDAR OBSTACLE DETECTED! Distance: {lidar_status['min_distance']:.0f}mm - STOPPING")
+                        shared_data.update_route_progress(i+1, len(dis_list), 
+                            f"⚠️ Phát hiện vật cản {lidar_status['min_distance']:.0f}mm - Tạm dừng", 
+                            distance * (1 - elapsed/total_time))
+                        
+                        # Chờ cho đến khi vật cản được di chuyển - GỬI 'S' LIÊN TỤC
+                        while lidar_status["detected"]:
+                            ser.write(b'S')  # Gửi lệnh dừng liên tục
+                            if shared_data.get_route_state()["stopped"]:
+                                print("[Serial] Route stopped during LIDAR obstacle wait")
+                                return
+                            sleep(0.1)
+                            lidar_status = shared_data.get_lidar_obstacle()
+                        
+                        print(f"[Serial] LIDAR obstacle cleared - Resuming movement")
+                        shared_data.update_route_progress(i+1, len(dis_list), "Tiếp tục di chuyển", distance * (1 - elapsed/total_time))
+                    
                     # Kiểm tra stop
                     if shared_data.get_route_state()["stopped"]:
                         ser.write(b'S')
@@ -173,6 +210,26 @@ def execute_route_commands(shared_data: SerialData, dis_list, dir_list, dir_valu
                             ser.write(b'S')
                             shared_data.update_route_progress(i+1, len(dis_list), "Đang tạm dừng...")
                             sleep(0.1)
+                        
+                        # Kiểm tra LIDAR obstacle (vật cản < 400mm trong -20° đến 20°)
+                        lidar_status = shared_data.get_lidar_obstacle()
+                        if lidar_status["detected"]:
+                            print(f"[Serial] ⚠️ LIDAR OBSTACLE DETECTED during turn! Distance: {lidar_status['min_distance']:.0f}mm - STOPPING")
+                            shared_data.update_route_progress(i+1, len(dis_list), 
+                                f"⚠️ Phát hiện vật cản {lidar_status['min_distance']:.0f}mm - Tạm dừng", 
+                                0)
+                            
+                            # Chờ cho đến khi vật cản được di chuyển - GỬI 'S' LIÊN TỤC
+                            while lidar_status["detected"]:
+                                ser.write(b'S')  # Gửi lệnh dừng liên tục
+                                if shared_data.get_route_state()["stopped"]:
+                                    print("[Serial] Route stopped during LIDAR obstacle wait (turn)")
+                                    return
+                                sleep(0.1)
+                                lidar_status = shared_data.get_lidar_obstacle()
+                            
+                            print(f"[Serial] LIDAR obstacle cleared - Resuming turn")
+                            shared_data.update_route_progress(i+1, len(dis_list), f"Tiếp tục quay {turn_direction}", 0)
                         
                         # Kiểm tra stop
                         if shared_data.get_route_state()["stopped"]:

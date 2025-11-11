@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚙️ Cấu hình hệ thống</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .config-section {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .config-section h2 {
+            color: #667eea;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .form-group .description {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+
+        .form-group input[type="number"],
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-with-unit {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-with-unit input {
+            flex: 1;
+        }
+
+        .unit {
+            font-weight: bold;
+            color: #667eea;
+            min-width: 60px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-reset {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-back {
+            background: #6c757d;
+            color: white;
+        }
+
+        .status-message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .current-value {
+            display: inline-block;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #666;
+            margin-left: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .header h1 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Cấu hình hệ thống</h1>
+            <p>Điều chỉnh các thông số hoạt động của xe tự hành</p>
+        </div>
+
+        <div id="statusMessage" class="status-message"></div>
+
+        <!-- Navigation Settings -->
+        <div class="config-section">
+            <h2>🚗 Cấu hình điều khiển</h2>
+            
+            <div class="form-group">
+                <label for="timePerMeter">Thời gian di chuyển mỗi mét</label>
+                <div class="description">Thời gian trung bình xe đi hết 1 mét (giây)</div>
+                <div class="input-with-unit">
+                    <input type="number" id="timePerMeter" step="0.1" min="0.1">
+                    <span class="unit">giây</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIDAR Settings -->
+        <div class="config-section">
+            <h2>📡 Cấu hình LIDAR</h2>
+            
+            <div class="form-group">
+                <label for="lidarMaxPoints">Số điểm LIDAR tối đa</label>
+                <div class="description">Số lượng điểm tối đa lưu trữ trong bộ nhớ</div>
+                <div class="input-with-unit">
+                    <input type="number" id="lidarMaxPoints" step="100" min="100">
+                    <span class="unit">điểm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="lidarDotLifetime">Thời gian hiển thị điểm</label>
+                <div class="description">Thời gian mỗi điểm LIDAR hiển thị trên radar (giây)</div>
+                <div class="input-with-unit">
+                    <input type="number" id="lidarDotLifetime" step="0.1" min="0.1">
+                    <span class="unit">giây</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIDAR Obstacle Detection -->
+        <div class="config-section">
+            <h2>⚠️ Phát hiện vật cản</h2>
+            
+            <div class="form-group">
+                <label for="obstacleDistance">Khoảng cách cảnh báo</label>
+                <div class="description">Khoảng cách tối thiểu để kích hoạt cảnh báo vật cản</div>
+                <div class="input-with-unit">
+                    <input type="number" id="obstacleDistance" step="10" min="50">
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="detectionAngleMin">Góc phát hiện tối thiểu</label>
+                <div class="description">Góc bắt đầu vùng phát hiện (âm = bên trái)</div>
+                <div class="input-with-unit">
+                    <input type="number" id="detectionAngleMin" step="1" min="-180" max="180">
+                    <span class="unit">độ</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="detectionAngleMax">Góc phát hiện tối đa</label>
+                <div class="description">Góc kết thúc vùng phát hiện (dương = bên phải)</div>
+                <div class="input-with-unit">
+                    <input type="number" id="detectionAngleMax" step="1" min="-180" max="180">
+                    <span class="unit">độ</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="button-group">
+            <button class="btn btn-save" onclick="saveConfigRuntime()">💾 Lưu vào bộ nhớ</button>
+            <button class="btn btn-save" onclick="saveConfigPermanent()" style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);">💿 Lưu vĩnh viễn</button>
+        </div>
+        <div class="button-group" style="margin-top: 10px;">
+            <button class="btn btn-reset" onclick="resetToDefault()">🔄 Reset mặc định</button>
+            <button class="btn btn-back" onclick="goBack()">⬅️ Quay lại</button>
+        </div>
+    </div>
+
+    <script>
+        // Load current config when page loads
+        window.addEventListener('DOMContentLoaded', loadConfig);
+
+        function loadConfig() {
+            console.log('🔄 Loading config from server...');
+            fetch('/getConfig')
+                .then(response => response.json())
+                .then(config => {
+                    console.log('📥 Received config:', config);
+                    document.getElementById('timePerMeter').value = config.TIME_PER_METER_SEC;
+                    document.getElementById('lidarMaxPoints').value = config.LIDAR_MAX_POINTS;
+                    document.getElementById('lidarDotLifetime').value = config.LIDAR_DOT_LIFETIME;
+                    document.getElementById('obstacleDistance').value = config.LIDAR_OBSTACLE_DISTANCE;
+                    document.getElementById('detectionAngleMin').value = config.LIDAR_DETECTION_ANGLE_MIN;
+                    document.getElementById('detectionAngleMax').value = config.LIDAR_DETECTION_ANGLE_MAX;
+                    console.log('✅ Config loaded successfully');
+                })
+                .catch(error => {
+                    console.error('❌ Error loading config:', error);
+                    showMessage('Lỗi khi tải cấu hình: ' + error, 'error');
+                });
+        }
+
+        function saveConfigRuntime() {
+            const config = getConfigValues();
+            console.log('📤 Saving to RUNTIME (temporary):', config);
+
+            fetch('/saveConfigRuntime', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(result => {
+                console.log('📥 Server response:', result);
+                if (result.success) {
+                    showMessage('✅ Đã lưu vào bộ nhớ (tạm thời, mất khi restart server)', 'success');
+                } else {
+                    showMessage('❌ Lỗi: ' + result.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error saving config:', error);
+                showMessage('❌ Lỗi khi lưu cấu hình: ' + error, 'error');
+            });
+        }
+
+        function saveConfigPermanent() {
+            const config = getConfigValues();
+            console.log('📤 Saving to settings.json (permanent):', config);
+
+            fetch('/saveConfigPermanent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(result => {
+                console.log('📥 Server response:', result);
+                if (result.success) {
+                    showMessage('✅ Đã lưu vĩnh viễn vào settings.json!', 'success');
+                } else {
+                    showMessage('❌ Lỗi: ' + result.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error saving config:', error);
+                showMessage('❌ Lỗi khi lưu cấu hình: ' + error, 'error');
+            });
+        }
+
+        function getConfigValues() {
+            return {
+                TIME_PER_METER_SEC: parseFloat(document.getElementById('timePerMeter').value),
+                LIDAR_MAX_POINTS: parseInt(document.getElementById('lidarMaxPoints').value),
+                LIDAR_DOT_LIFETIME: parseFloat(document.getElementById('lidarDotLifetime').value),
+                LIDAR_OBSTACLE_DISTANCE: parseInt(document.getElementById('obstacleDistance').value),
+                LIDAR_DETECTION_ANGLE_MIN: parseInt(document.getElementById('detectionAngleMin').value),
+                LIDAR_DETECTION_ANGLE_MAX: parseInt(document.getElementById('detectionAngleMax').value)
+            };
+        }
+
+        function resetToDefault() {
+            if (confirm('⚠️ Bạn có chắc muốn reset về cấu hình mặc định không?')) {
+                fetch('/resetConfig', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            showMessage('✅ Đã reset về cấu hình mặc định!', 'success');
+                            loadConfig();
+                        } else {
+                            showMessage('❌ Lỗi: ' + result.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showMessage('❌ Lỗi khi reset: ' + error, 'error');
+                    });
+            }
+        }
+
+        function showMessage(message, type) {
+            const msgDiv = document.getElementById('statusMessage');
+            msgDiv.textContent = message;
+            msgDiv.className = 'status-message ' + type;
+            msgDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                msgDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function goBack() {
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>

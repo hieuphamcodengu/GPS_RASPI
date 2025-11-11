@@ -25,7 +25,22 @@ GOOGLE_MAPS_API_KEY = "AIzaSyCWxuTGtkD5O7cDqQYrsHZeajpPBZdKWnk"  # thay bằng k
 SERIAL_TIMEOUT_SEC = 1
 
 # Thời gian trung bình xe đi hết 1 mét (giây)
-TIME_PER_METER_SEC = 1  # chỉnh lại theo thực tế
+TIME_PER_METER_SEC = 1.0  # chỉnh lại theo thực tế
 
+# =====================================================
+# LIDAR Configuration
+# =====================================================
+# Cấu hình Serial cho LIDAR
+LIDAR_PORT = "COM25"           # Cổng COM kết nối LIDAR
+LIDAR_BAUDRATE = 115200       # Tốc độ baudrate
+
+# Cấu hình hiển thị LIDAR
+LIDAR_MAX_POINTS = 1500       # Số điểm tối đa lưu trữ
+LIDAR_DOT_LIFETIME = 1.0      # Thời gian hiển thị điểm (giây)
+
+# Cấu hình phát hiện vật cản
+LIDAR_OBSTACLE_DISTANCE = 400  # Khoảng cách phát hiện vật cản (mm)
+LIDAR_DETECTION_ANGLE_MIN = -20  # Góc phát hiện tối thiểu (độ)
+LIDAR_DETECTION_ANGLE_MAX = 20   # Góc phát hiện tối đa (độ)
 
 

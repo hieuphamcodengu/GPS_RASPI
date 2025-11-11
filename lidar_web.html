@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 LIDAR Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            overflow-x: hidden;
+        }
+
+        .header {
+            color: white;
+            text-align: center;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            padding: 20px;
+            max-width: 1400px;
+            width: 95%;
+            margin: 0 auto;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-info {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #9E9E9E;
+            color: white;
+        }
+
+        .canvas-container {
+            position: relative;
+            background: #1a1a2e;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #lidarCanvas {
+            display: block;
+            background: #0f0f1e;
+            border-radius: 8px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 0.85em;
+            margin-bottom: 8px;
+            opacity: 0.9;
+        }
+
+        .stat-card .value {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .status.connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status.disconnected {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .back-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5em;
+            }
+            
+            .container {
+                padding: 15px;
+                width: 98%;
+            }
+            
+            .btn {
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+            
+            .stat-card .value {
+                font-size: 1.5em;
+            }
+        }
+        
+        @media (min-width: 1200px) {
+            #lidarCanvas {
+                width: 900px;
+                height: 900px;
+            }
+        }
+        
+        @media (min-width: 768px) and (max-width: 1199px) {
+            #lidarCanvas {
+                width: 700px;
+                height: 700px;
+            }
+        }
+        
+        @media (max-width: 767px) {
+            #lidarCanvas {
+                width: 90vw;
+                height: 90vw;
+                max-width: 600px;
+                max-height: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📡 ESP32 LIDAR Viewer</h1>
+        <p>Real-time LIDAR Data Visualization</p>
+    </div>
+
+    <div class="container">
+        <div class="status connected" id="status">
+            � LIDAR đang hoạt động
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-info" onclick="clearData()">🧹 Xóa dữ liệu</button>
+            <button class="btn btn-secondary" onclick="goBack()">🏠 Quay lại</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Số điểm hiện tại</h3>
+                <div class="value" id="pointCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Khoảng cách phía trước (-20° ~ 20°)</h3>
+                <div class="value" id="minDistance">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Khoảng cách xa nhất</h3>
+                <div class="value" id="maxDistance">-</div>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="lidarCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('lidarCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Hàm điều chỉnh kích thước canvas responsive
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth - 30; // Trừ padding
+            let size = Math.min(containerWidth, 900); // Max 900px
+            
+            // Điều chỉnh theo màn hình
+            if (window.innerWidth < 768) {
+                size = Math.min(containerWidth, window.innerHeight * 0.6);
+            } else if (window.innerWidth < 1200) {
+                size = Math.min(containerWidth, 700);
+            }
+            
+            canvas.width = size;
+            canvas.height = size;
+            
+            // Vẽ lại sau khi resize
+            drawRadarGrid();
+        }
+        
+        // Gọi resize khi load và khi thay đổi màn hình
+        window.addEventListener('load', resizeCanvas);
+        window.addEventListener('resize', resizeCanvas);
+        
+        // =====================================================
+        // Config động từ server
+        // =====================================================
+        let lidarConfig = {
+            obstacleDistance: 400,
+            angleMin: -20,
+            angleMax: 20
+        };
+
+        // Load config từ server
+        function loadLidarConfig() {
+            fetch('/getConfig')
+                .then(response => response.json())
+                .then(config => {
+                    lidarConfig.obstacleDistance = config.LIDAR_OBSTACLE_DISTANCE || 400;
+                    lidarConfig.angleMin = config.LIDAR_DETECTION_ANGLE_MIN || -20;
+                    lidarConfig.angleMax = config.LIDAR_DETECTION_ANGLE_MAX || 20;
+                    console.log(`[LIDAR Config] Loaded: Distance=${lidarConfig.obstacleDistance}mm, Angle=[${lidarConfig.angleMin}° to ${lidarConfig.angleMax}°]`);
+                })
+                .catch(error => {
+                    console.error('Error loading LIDAR config:', error);
+                });
+        }
+
+        // Load config khi trang load và reload mỗi 5 giây
+        loadLidarConfig();
+        setInterval(loadLidarConfig, 5000);
+        
+        // Tính toán center và radius động
+        function getCanvasMetrics() {
+            return {
+                centerX: canvas.width / 2,
+                centerY: canvas.height / 2,
+                maxRadius: Math.min(canvas.width, canvas.height) / 2 - 20
+            };
+        }
+
+        // Vẽ lưới radar nền
+        function drawRadarGrid() {
+            const { centerX, centerY, maxRadius } = getCanvasMetrics();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Vẽ các vòng tròn đồng tâm
+            ctx.strokeStyle = '#00ff0040';
+            ctx.lineWidth = 1;
+            for (let i = 1; i <= 4; i++) {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, (maxRadius / 4) * i, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+            
+            // Vẽ các trục góc (mỗi 30 độ)
+            ctx.strokeStyle = '#00ff0030';
+            for (let angle = 0; angle < 360; angle += 30) {
+                const rad = (angle - 90) * Math.PI / 180;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(
+                    centerX + maxRadius * Math.cos(rad),
+                    centerY + maxRadius * Math.sin(rad)
+                );
+                ctx.stroke();
+            }
+            
+            // Vẽ chữ N, S, E, W
+            ctx.fillStyle = '#00ff00';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            ctx.fillText('N', centerX, centerY - maxRadius - 10);
+            ctx.fillText('S', centerX, centerY + maxRadius + 10);
+            ctx.fillText('E', centerX + maxRadius + 10, centerY);
+            ctx.fillText('W', centerX - maxRadius - 10, centerY);
+            
+            // Vẽ điểm trung tâm
+            ctx.fillStyle = '#ff0000';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        // Vẽ các điểm LIDAR
+        function drawLidarPoints(points) {
+            if (!points || points.length === 0) return;
+            
+            const { centerX, centerY, maxRadius } = getCanvasMetrics();
+            
+            let minDistFront = Infinity;  // Khoảng cách gần nhất phía trước
+            let maxDist = 0;
+            const DANGER_DISTANCE = lidarConfig.obstacleDistance;  // Đọc từ config động
+            const ANGLE_MIN = lidarConfig.angleMin;
+            const ANGLE_MAX = lidarConfig.angleMax;
+            
+            points.forEach(point => {
+                const angle = point.angle;
+                const distance = point.distance;
+                const age = point.age || 0;
+                
+                // Kiểm tra nếu góc trong khoảng được cấu hình (vùng phát hiện)
+                // Xử lý cả góc âm và dương, ví dụ -20° đến 20°
+                let isInDetectionZone = false;
+                
+                if (ANGLE_MIN < 0 && ANGLE_MAX > 0) {
+                    // Trường hợp góc qua 0° (ví dụ: -20° đến 20°)
+                    // Chấp nhận góc trong khoảng [-20, 20] hoặc [340, 360] và [0, 20]
+                    if ((angle >= ANGLE_MIN && angle <= ANGLE_MAX) ||
+                        (angle >= (360 + ANGLE_MIN) && angle <= 360) ||
+                        (angle >= 0 && angle <= ANGLE_MAX)) {
+                        isInDetectionZone = true;
+                    }
+                } else {
+                    // Trường hợp bình thường (ví dụ: 30° đến 60°)
+                    if (angle >= ANGLE_MIN && angle <= ANGLE_MAX) {
+                        isInDetectionZone = true;
+                    }
+                }
+                
+                // Tính tọa độ trên canvas (góc 0° = phía Bắc)
+                const angleRad = (angle - 90) * Math.PI / 180;
+                
+                // Scale khoảng cách (giả sử max = 4000mm)
+                const maxDistance = 4000;
+                const radius = (distance / maxDistance) * maxRadius;
+                
+                const x = centerX + radius * Math.cos(angleRad);
+                const y = centerY + radius * Math.sin(angleRad);
+                
+                // Màu sắc và độ mờ dần theo thời gian
+                const alpha = Math.max(0, 1 - age / 2.0); // Mờ dần trong 2 giây
+                
+                // CẢNH BÁO: Nếu trong vùng phát hiện và khoảng cách < ngưỡng → MÀU ĐỎ
+                if (isInDetectionZone && distance < DANGER_DISTANCE) {
+                    // Màu đỏ với độ sáng tùy theo thời gian
+                    if (age < 0.5) {
+                        ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`; // Đỏ sáng
+                    } else if (age < 1.0) {
+                        ctx.fillStyle = `rgba(220, 0, 0, ${alpha})`; // Đỏ trung bình
+                    } else {
+                        ctx.fillStyle = `rgba(180, 0, 0, ${alpha})`; // Đỏ tối
+                    }
+                } else {
+                    // Màu xanh bình thường
+                    if (age < 0.5) {
+                        ctx.fillStyle = `rgba(0, 255, 0, ${alpha})`;
+                    } else if (age < 1.0) {
+                        ctx.fillStyle = `rgba(0, 200, 0, ${alpha})`;
+                    } else {
+                        ctx.fillStyle = `rgba(0, 150, 0, ${alpha})`;
+                    }
+                }
+                
+                // Vẽ điểm (lớn hơn nếu là cảnh báo)
+                ctx.beginPath();
+                const pointSize = (isInDetectionZone && distance < DANGER_DISTANCE) ? 6 : 4;
+                ctx.arc(x, y, pointSize, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Chỉ tính khoảng cách gần nhất trong vùng phát hiện được cấu hình
+                if (isInDetectionZone) {
+                    if (distance < minDistFront) minDistFront = distance;
+                }
+                
+                // Cập nhật max distance (toàn bộ)
+                if (distance > maxDist) maxDist = distance;
+            });
+            
+            // Cập nhật stats
+            document.getElementById('pointCount').textContent = points.length;
+            
+            // Hiển thị khoảng cách phía trước với màu cảnh báo nếu < ngưỡng
+            const minDistText = minDistFront === Infinity ? '-' : minDistFront.toFixed(0) + ' mm';
+            const minDistElement = document.getElementById('minDistance');
+            minDistElement.textContent = minDistText;
+            
+            // Thay đổi màu nền của stat card nếu nguy hiểm
+            const minDistCard = minDistElement.parentElement;
+            if (minDistFront < DANGER_DISTANCE && minDistFront !== Infinity) {
+                minDistCard.style.background = 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)';
+            } else {
+                minDistCard.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            }
+            
+            document.getElementById('maxDistance').textContent = maxDist === 0 ? '-' : maxDist.toFixed(0) + ' mm';
+        }
+
+        // Fetch dữ liệu từ server
+        function fetchLidarData() {
+            fetch('/getLidarData')
+                .then(response => response.json())
+                .then(data => {
+                    drawRadarGrid();
+                    
+                    // Sử dụng config động
+                    const angleMin = lidarConfig.angleMin;
+                    const angleMax = lidarConfig.angleMax;
+                    const obstacleDistance = lidarConfig.obstacleDistance;
+                    
+                    // Tính khoảng cách gần nhất trong vùng được cấu hình
+                    let minDistance = 9999;
+                    let hasObstacle = false;
+                    
+                    if (data.points && data.points.length > 0) {
+                        data.points.forEach(point => {
+                            const angle = point.angle;
+                            const distance = point.distance;
+                            
+                            // Kiểm tra góc trong vùng phát hiện (xử lý cả góc âm)
+                            let isInZone = false;
+                            
+                            if (angleMin < 0 && angleMax > 0) {
+                                // Trường hợp góc qua 0° (ví dụ: -20° đến 20°)
+                                if ((angle >= angleMin && angle <= angleMax) ||
+                                    (angle >= (360 + angleMin) && angle <= 360) ||
+                                    (angle >= 0 && angle <= angleMax)) {
+                                    isInZone = true;
+                                }
+                            } else {
+                                // Trường hợp bình thường
+                                if (angle >= angleMin && angle <= angleMax) {
+                                    isInZone = true;
+                                }
+                            }
+                            
+                            // Chỉ xét các điểm trong vùng được cấu hình
+                            if (isInZone) {
+                                if (distance < minDistance) {
+                                    minDistance = distance;
+                                }
+                                if (distance < obstacleDistance) {
+                                    hasObstacle = true;
+                                }
+                            }
+                        });
+                    }
+                    
+                    // Gửi trạng thái vật cản lên server (để navigation system biết)
+                    updateLidarObstacle(hasObstacle, minDistance);
+                    
+                    // Vẽ các điểm LIDAR
+                    drawLidarPoints(data.points);
+                    
+                    // Cập nhật status
+                    const statusDiv = document.getElementById('status');
+                    if (data.connected) {
+                        statusDiv.className = 'status connected';
+                        statusDiv.textContent = '🟢 LIDAR đang hoạt động';
+                    } else {
+                        statusDiv.className = 'status disconnected';
+                        statusDiv.textContent = '🔴 Chưa kết nối';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching LIDAR data:', error);
+                });
+        }
+
+        // Gửi trạng thái vật cản lên server
+        function updateLidarObstacle(detected, minDistance) {
+            // Log để debug
+            if (detected) {
+                console.log(`🚨 SENDING OBSTACLE ALERT: detected=${detected}, distance=${minDistance.toFixed(0)}mm`);
+            }
+            
+            const formData = new FormData();
+            formData.append('detected', detected);
+            formData.append('min_distance', minDistance);
+            
+            fetch('/updateLidarObstacle', {
+                method: 'POST',
+                body: formData
+            }).catch(error => {
+                console.error('Error updating LIDAR obstacle:', error);
+            });
+        }
+
+        // Xóa dữ liệu
+        function clearData() {
+            fetch('/clearLidarData', { method: 'POST' })
+                .then(response => response.text())
+                .then(msg => {
+                    console.log(msg);
+                    drawRadarGrid();
+                    document.getElementById('pointCount').textContent = '0';
+                    document.getElementById('minDistance').textContent = '-';
+                    document.getElementById('maxDistance').textContent = '-';
+                })
+                .catch(error => console.error('Error clearing data:', error));
+        }
+
+        // Quay lại trang chủ
+        function goBack() {
+            window.location.href = '/';
+        }
+
+        // Khởi tạo - Tự động bắt đầu LIDAR khi load trang
+        drawRadarGrid();
+        
+        // Bắt đầu LIDAR ngay khi vào trang
+        fetch('/startLidar', { method: 'POST' })
+            .then(response => response.text())
+            .then(msg => {
+                console.log('[AUTO-START]', msg);
+            })
+            .catch(error => console.error('Error auto-starting LIDAR:', error));
+        
+        // Tự động fetch dữ liệu mỗi 100ms
+        setInterval(fetchLidarData, 100);
+    </script>
+</body>
+</html>
