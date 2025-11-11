@@ -115,6 +115,10 @@
     #debugPanel {
       scrollbar-width: thin;
       scrollbar-color: #0f0 #263238;
+      overflow-y: auto;
+      overflow-x: hidden;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
     
     #debugPanel::-webkit-scrollbar {
@@ -130,9 +134,17 @@
       border-radius: 4px;
     }
     
+    #debugContent {
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    
     #debugContent div {
       padding: 2px 0;
       line-height: 1.4;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
   </style>
 </head>
@@ -151,7 +163,9 @@
           <button id="btnStart" style="width:100%; margin-bottom:8px;" disabled>Bắt đầu</button>
           <button id="btnPause" style="width:100%; margin-bottom:8px; background-color:#ff9800; color:white;" disabled>Tạm dừng</button>
           <button id="btnStop" style="width:100%; margin-bottom:8px; background-color:#ff5252; color:white;" disabled>Dừng</button>
-          <button id="btnDetection" style="width:100%; background-color:#4CAF50; color:white;" onclick="goToDetection()">🎯 Detection</button>
+          <button id="btnDetection" style="width:100%; margin-bottom:8px; background-color:#4CAF50; color:white;" onclick="goToDetection()">🎯 Detection</button>
+          <button id="btnLidar" style="width:100%; margin-bottom:8px; background-color:#9C27B0; color:white;" onclick="goToLidar()">📡 LIDAR</button>
+          <button id="btnConfig" style="width:100%; background-color:#FF9800; color:white;" onclick="goToConfig()">⚙️ Cấu hình</button>
         </div>
       </div>
       <div style="flex: 2;">
@@ -487,14 +501,21 @@
     // Cập nhật debug panel
     function updateDebugPanel(message) {
       const debugContent = document.getElementById("debugContent");
+      const debugPanel = document.getElementById("debugPanel");
       const timestamp = new Date().toLocaleTimeString();
       const newLine = document.createElement("div");
       newLine.textContent = `[${timestamp}] ${message}`;
+      newLine.style.wordWrap = "break-word";
+      newLine.style.overflowWrap = "break-word";
+      
       debugContent.appendChild(newLine);
+      
       // Auto scroll to bottom
-      document.getElementById("debugPanel").scrollTop = document.getElementById("debugPanel").scrollHeight;
-      // Giữ tối đa 50 dòng
-      while (debugContent.children.length > 50) {
+      debugPanel.scrollTop = debugPanel.scrollHeight;
+      
+      // Giữ tối đa 30 dòng để tránh tràn
+      const maxLines = 30;
+      while (debugContent.children.length > maxLines) {
         debugContent.removeChild(debugContent.firstChild);
       }
     }
@@ -639,6 +660,16 @@
     // Chuyển sang trang Detection
     function goToDetection() {
       window.location.href = "/detection";
+    }
+
+    // Chuyển sang trang LIDAR
+    function goToLidar() {
+      window.location.href = "/lidar";
+    }
+
+    // Chuyển sang trang Cấu hình
+    function goToConfig() {
+      window.location.href = "/config";
     }
   </script>
 

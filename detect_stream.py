@@ -2,9 +2,22 @@ import cv2
 import numpy as np
 import time
 from concurrent.futures import ThreadPoolExecutor
-import tflite_runtime.interpreter as tflite
 import os
 import threading
+
+# Try import TFLite runtime, fallback to TensorFlow if not available
+try:
+    import tflite_runtime.interpreter as tflite
+    print("[INFO] Using tflite_runtime")
+except ImportError:
+    try:
+        import tensorflow as tf
+        tflite = tf.lite
+        print("[INFO] Using TensorFlow Lite from tensorflow package")
+    except ImportError:
+        print("[WARNING] Neither tflite_runtime nor tensorflow found!")
+        print("[WARNING] Detection features will be disabled")
+        tflite = None
 
 # ===================== CONFIG =====================
 MODEL_PATH = "model.tflite"
@@ -29,12 +42,25 @@ else:
     CLASS_NAMES = ["Benh", "Binh_thuong"]
 
 # ===================== LOAD TFLITE MODEL =====================
-print(f"Loading TFLite model: {MODEL_PATH}")
-interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=NUM_THREADS)
-interpreter.allocate_tensors()
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
-print("Model loaded.")
+interpreter = None
+input_details = None
+output_details = None
+
+if tflite is not None and os.path.exists(MODEL_PATH):
+    try:
+        print(f"Loading TFLite model: {MODEL_PATH}")
+        interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=NUM_THREADS)
+        interpreter.allocate_tensors()
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        print("Model loaded successfully.")
+    except Exception as e:
+        print(f"[ERROR] Failed to load model: {e}")
+        interpreter = None
+elif tflite is None:
+    print("[WARNING] TFLite not available - detection will be disabled")
+else:
+    print(f"[WARNING] Model file not found: {MODEL_PATH}")
 
 # ===================== GLOBAL VARIABLES =====================
 cap = None
@@ -100,6 +126,10 @@ def nms_boxes(boxes, scores, iou_threshold=NMS_THRESH):
 # ===================== INFERENCE WORKER =====================
 def infer_on_image(img_bgr):
     """Run inference on image"""
+    # Kiểm tra nếu không có interpreter
+    if interpreter is None:
+        return None, 0, (0, 0), 0.0
+    
     start_time = time.time()
     
     img_padded, r, pad = letterbox(img_bgr, (INPUT_SIZE, INPUT_SIZE))
@@ -121,6 +151,11 @@ def infer_on_image(img_bgr):
 def postprocess_and_draw(output, r, pad, frame):
     """Decode model output and draw bounding boxes"""
     global object_count, disease_count, healthy_count
+    
+    # Nếu không có output (interpreter = None)
+    if output is None:
+        return frame
+    
     h0, w0 = frame.shape[:2]
     boxes = []
     scores = []
@@ -225,7 +260,7 @@ def get_frame():
     with frame_lock:
         latest_frame = frame.copy()
     
-    if detection_enabled:
+    if detection_enabled and interpreter is not None:
         # Detection mode - run inference
         if future is not None and future.done():
             try:
@@ -250,6 +285,11 @@ def get_frame():
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,100,255), 2)
         
         return display
+    elif detection_enabled and interpreter is None:
+        # Detection requested but model not available
+        cv2.putText(frame, "Detection unavailable - Model not loaded", (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
+        return frame
     else:
         # Camera only mode - no detection
         cv2.putText(frame, "Camera Mode - No Detection", (10, 30), 
