@@ -3,9 +3,11 @@ import threading
 import time
 import json
 import os
+import serial
 from Read_Serial import SerialData, start_serial_thread, execute_route_commands
 from config import (FLASK_HOST, FLASK_PORT, GOOGLE_MAPS_API_KEY, LIDAR_PORT, LIDAR_BAUDRATE,
-                    LIDAR_OBSTACLE_DISTANCE, LIDAR_DETECTION_ANGLE_MIN, LIDAR_DETECTION_ANGLE_MAX)
+                    LIDAR_OBSTACLE_DISTANCE, LIDAR_DETECTION_ANGLE_MIN, LIDAR_DETECTION_ANGLE_MAX,
+                    SERIAL_PORT_CONTROL, SERIAL_BAUD_CONTROL)
 import detect_stream
 import Read_lidar
 import config
@@ -142,6 +144,51 @@ def lidar_monitor_thread(shared_data):
 # Khởi động LIDAR monitor thread
 lidar_monitor = threading.Thread(target=lidar_monitor_thread, args=(shared_data,), daemon=True)
 lidar_monitor.start()
+
+def lidar_emergency_monitor_thread(shared_data):
+    """
+    Thread liên tục gửi tín hiệu về Arduino:
+    - 'S' nếu phát hiện vật cản < ngưỡng
+    - 'N' nếu không có vật cản (normal)
+    Arduino sẽ tự quyết định xử lý như thế nào.
+    """
+    print("[LIDAR Emergency Monitor] Starting continuous monitoring...")
+    
+    try:
+        with serial.Serial(SERIAL_PORT_CONTROL, SERIAL_BAUD_CONTROL, timeout=1) as ser:
+            print(f"[LIDAR Emergency Monitor] Connected to {SERIAL_PORT_CONTROL}")
+            last_state = None  # Track để chỉ log khi thay đổi
+            
+            while True:
+                try:
+                    lidar_status = shared_data.get_lidar_obstacle()
+                    
+                    if lidar_status["detected"]:
+                        # Có vật cản → gửi 'S'
+                        ser.write(b'S')
+                        if last_state != 'S':
+                            print(f"[LIDAR Emergency Monitor] 🚨 OBSTACLE DETECTED at {lidar_status['min_distance']:.0f}mm → Sending 'S'")
+                            last_state = 'S'
+                    else:
+                        # Không có vật cản → gửi 'N'
+                        ser.write(b'N')
+                        if last_state != 'N':
+                            print(f"[LIDAR Emergency Monitor] ✅ Path clear → Sending 'N'")
+                            last_state = 'N'
+                    
+                    time.sleep(0.1)  # Gửi mỗi 100ms
+                    
+                except Exception as e:
+                    print(f"[LIDAR Emergency Monitor] Error in loop: {e}")
+                    time.sleep(0.5)
+                    
+    except Exception as e:
+        print(f"[LIDAR Emergency Monitor] Failed to open serial port: {e}")
+
+# Khởi động LIDAR emergency monitor thread
+emergency_monitor = threading.Thread(target=lidar_emergency_monitor_thread, args=(shared_data,), daemon=True)
+emergency_monitor.start()
+print("[LIDAR Emergency Monitor] Thread started - Continuous S/N monitoring ENABLED")
 
 # Đọc file HTML từ map.html
 with open("map.html", "r", encoding="utf-8") as f:
